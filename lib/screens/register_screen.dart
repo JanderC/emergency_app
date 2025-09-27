@@ -9,7 +9,8 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen>
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _apellidoController = TextEditingController();
@@ -19,9 +20,64 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   bool _esBombero = false;
   bool _isLoading = false;
+  bool _passwordVisible = false;
+  bool _confirmPasswordVisible = false;
+
+  late AnimationController _animationController;
+  late AnimationController _pulseController;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _slideAnimation;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Animación principal
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+    
+    // Animación de pulso para el logo
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+    ));
+
+    _slideAnimation = Tween<double>(
+      begin: 50.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.2, 0.8, curve: Curves.elasticOut),
+    ));
+
+    _pulseAnimation = Tween<double>(
+      begin: 0.95,
+      end: 1.05,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+
+    _animationController.forward();
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
+      // Animación de shake para errores
+      _animationController.reverse().then((_) {
+        _animationController.forward();
+      });
       return;
     }
 
@@ -41,34 +97,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (mounted) {
         if (!result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showSnackBar(result['message'], Colors.red, Icons.error);
         } else {
-          // Mostrar mensaje de éxito
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Usuario registrado exitosamente. Ahora puede iniciar sesión.'),
-              backgroundColor: Colors.green,
-            ),
+          _showSnackBar(
+            'Usuario registrado exitosamente. Ahora puede iniciar sesión.',
+            Colors.green,
+            Icons.check_circle,
           );
           
-          // Volver a la pantalla de login
+          // Animación de salida
+          await _animationController.reverse();
           Navigator.of(context).pop();
         }
       }
     } catch (error) {
       print('Error en registro: $error');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al registrar: $error'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showSnackBar('Error al registrar: $error', Colors.red, Icons.error);
       }
     } finally {
       if (mounted) {
@@ -79,8 +124,111 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  void _showSnackBar(String message, Color color, IconData icon) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required String? Function(String?) validator,
+    TextInputType? keyboardType,
+    bool obscureText = false,
+    bool? showPasswordToggle,
+    VoidCallback? onPasswordToggle,
+    int delay = 0,
+  }) {
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, _slideAnimation.value * (delay * 0.1 + 1)),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: TextFormField(
+                controller: controller,
+                keyboardType: keyboardType,
+                obscureText: obscureText,
+                validator: validator,
+                style: const TextStyle(fontSize: 16),
+                decoration: InputDecoration(
+                  labelText: label,
+                  prefixIcon: Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, color: Colors.red),
+                  ),
+                  suffixIcon: showPasswordToggle == true
+                      ? IconButton(
+                          icon: Icon(
+                            obscureText ? Icons.visibility : Icons.visibility_off,
+                            color: Colors.grey,
+                          ),
+                          onPressed: onPasswordToggle,
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.withOpacity(0.05),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.red, width: 1.5),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
+    _animationController.dispose();
+    _pulseController.dispose();
     _nombreController.dispose();
     _apellidoController.dispose();
     _emailController.dispose();
@@ -93,198 +241,370 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Registro de Usuario'),
-        backgroundColor: Colors.red,
-        foregroundColor: Colors.white,
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo
-                Container(
-                  height: 100,
-                  width: 100,
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(50),
-                  ),
-                  child: const Icon(
-                    Icons.person_add,
-                    size: 60,
-                    color: Colors.white,
-                  ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.red.withOpacity(0.1),
+              Colors.white,
+              Colors.red.withOpacity(0.05),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // AppBar personalizada
+              Container(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.red),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ),
+                    const Expanded(
+                      child: Text(
+                        'Registro de Usuario',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(width: 48),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                
-                // Título
-                const Text(
-                  'Crear Cuenta',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                
-                // Formulario
-                Form(
-                  key: _formKey,
+              ),
+              
+              // Contenido principal
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24.0),
                   child: Column(
                     children: [
-                      // Nombre
-                      TextFormField(
-                        controller: _nombreController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre',
-                          prefixIcon: Icon(Icons.person),
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese su nombre';
-                          }
-                          return null;
+                      // Logo animado
+                      AnimatedBuilder(
+                        animation: _pulseAnimation,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: _pulseAnimation.value,
+                            child: FadeTransition(
+                              opacity: _fadeAnimation,
+                              child: Container(
+                                height: 120,
+                                width: 120,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [Colors.red, Colors.red.shade700],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(60),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.3),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.person_add,
+                                  size: 70,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          );
                         },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Apellido
-                      TextFormField(
-                        controller: _apellidoController,
-                        decoration: const InputDecoration(
-                          labelText: 'Apellido',
-                          prefixIcon: Icon(Icons.person),
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese su apellido';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Email
-                      TextFormField(
-                        controller: _emailController,
-                        decoration: const InputDecoration(
-                          labelText: 'Correo electrónico',
-                          prefixIcon: Icon(Icons.email),
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese su correo';
-                          }
-                          if (!value.contains('@')) {
-                            return 'Por favor ingrese un correo válido';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Teléfono
-                      TextFormField(
-                        controller: _telefonoController,
-                        decoration: const InputDecoration(
-                          labelText: 'Teléfono',
-                          prefixIcon: Icon(Icons.phone),
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.phone,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese su teléfono';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Contraseña
-                      TextFormField(
-                        controller: _passwordController,
-                        decoration: const InputDecoration(
-                          labelText: 'Contraseña',
-                          prefixIcon: Icon(Icons.lock),
-                          border: OutlineInputBorder(),
-                        ),
-                        obscureText: true,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese una contraseña';
-                          }
-                          if (value.length < 6) {
-                            return 'La contraseña debe tener al menos 6 caracteres';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Confirmar Contraseña
-                      TextFormField(
-                        controller: _confirmPasswordController,
-                        decoration: const InputDecoration(
-                          labelText: 'Confirmar Contraseña',
-                          prefixIcon: Icon(Icons.lock_outline),
-                          border: OutlineInputBorder(),
-                        ),
-                        obscureText: true,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor confirme su contraseña';
-                          }
-                          if (value != _passwordController.text) {
-                            return 'Las contraseñas no coinciden';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Checkbox para perfil de bombero
-                      CheckboxListTile(
-                        title: const Text('Registrarse como bombero'),
-                        value: _esBombero,
-                        activeColor: Colors.red,
-                        onChanged: (value) {
-                          setState(() {
-                            _esBombero = value ?? false;
-                          });
-                        },
-                        controlAffinity: ListTileControlAffinity.leading,
                       ),
                       const SizedBox(height: 24),
                       
-                      // Botón de registro
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _submit,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
+                      // Título animado
+                      FadeTransition(
+                        opacity: _fadeAnimation,
+                        child: const Text(
+                          'Crear Cuenta',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red,
                           ),
-                          child: _isLoading
-                              ? const CircularProgressIndicator(color: Colors.white)
-                              : const Text('Registrarse'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      FadeTransition(
+                        opacity: _fadeAnimation,
+                        child: Text(
+                          'Únete a nuestra comunidad de emergencias',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      
+                      // Formulario
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            // Nombre
+                            _buildAnimatedTextField(
+                              controller: _nombreController,
+                              label: 'Nombre',
+                              icon: Icons.person,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Por favor ingrese su nombre';
+                                }
+                                return null;
+                              },
+                              delay: 1,
+                            ),
+                            const SizedBox(height: 20),
+                            
+                            // Apellido
+                            _buildAnimatedTextField(
+                              controller: _apellidoController,
+                              label: 'Apellido',
+                              icon: Icons.person_outline,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Por favor ingrese su apellido';
+                                }
+                                return null;
+                              },
+                              delay: 2,
+                            ),
+                            const SizedBox(height: 20),
+                            
+                            // Email
+                            _buildAnimatedTextField(
+                              controller: _emailController,
+                              label: 'Correo electrónico',
+                              icon: Icons.email,
+                              keyboardType: TextInputType.emailAddress,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Por favor ingrese su correo';
+                                }
+                                if (!value.contains('@')) {
+                                  return 'Por favor ingrese un correo válido';
+                                }
+                                return null;
+                              },
+                              delay: 3,
+                            ),
+                            const SizedBox(height: 20),
+                            
+                            // Teléfono
+                            _buildAnimatedTextField(
+                              controller: _telefonoController,
+                              label: 'Teléfono',
+                              icon: Icons.phone,
+                              keyboardType: TextInputType.phone,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Por favor ingrese su teléfono';
+                                }
+                                return null;
+                              },
+                              delay: 4,
+                            ),
+                            const SizedBox(height: 20),
+                            
+                            // Contraseña
+                            _buildAnimatedTextField(
+                              controller: _passwordController,
+                              label: 'Contraseña',
+                              icon: Icons.lock,
+                              obscureText: !_passwordVisible,
+                              showPasswordToggle: true,
+                              onPasswordToggle: () {
+                                setState(() {
+                                  _passwordVisible = !_passwordVisible;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Por favor ingrese una contraseña';
+                                }
+                                if (value.length < 6) {
+                                  return 'La contraseña debe tener al menos 6 caracteres';
+                                }
+                                return null;
+                              },
+                              delay: 5,
+                            ),
+                            const SizedBox(height: 20),
+                            
+                            // Confirmar Contraseña
+                            _buildAnimatedTextField(
+                              controller: _confirmPasswordController,
+                              label: 'Confirmar Contraseña',
+                              icon: Icons.lock_outline,
+                              obscureText: !_confirmPasswordVisible,
+                              showPasswordToggle: true,
+                              onPasswordToggle: () {
+                                setState(() {
+                                  _confirmPasswordVisible = !_confirmPasswordVisible;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Por favor confirme su contraseña';
+                                }
+                                if (value != _passwordController.text) {
+                                  return 'Las contraseñas no coinciden';
+                                }
+                                return null;
+                              },
+                              delay: 6,
+                            ),
+                            const SizedBox(height: 24),
+                            
+                            // Checkbox animado para bombero
+                            AnimatedBuilder(
+                              animation: _animationController,
+                              builder: (context, child) {
+                                return Transform.translate(
+                                  offset: Offset(0, _slideAnimation.value * 0.7),
+                                  child: FadeTransition(
+                                    opacity: _fadeAnimation,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: _esBombero ? Colors.red.withOpacity(0.1) : Colors.grey.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: _esBombero ? Colors.red : Colors.transparent,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: CheckboxListTile(
+                                        title: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.local_fire_department,
+                                              color: _esBombero ? Colors.red : Colors.grey,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              'Registrarse como bombero',
+                                              style: TextStyle(fontWeight: FontWeight.w500),
+                                            ),
+                                          ],
+                                        ),
+                                        value: _esBombero,
+                                        activeColor: Colors.red,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _esBombero = value ?? false;
+                                          });
+                                        },
+                                        controlAffinity: ListTileControlAffinity.leading,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 32),
+                            
+                            // Botón de registro mejorado
+                            AnimatedBuilder(
+                              animation: _animationController,
+                              builder: (context, child) {
+                                return Transform.translate(
+                                  offset: Offset(0, _slideAnimation.value * 0.8),
+                                  child: FadeTransition(
+                                    opacity: _fadeAnimation,
+                                    child: Container(
+                                      width: double.infinity,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.red.withOpacity(0.3),
+                                            blurRadius: 15,
+                                            offset: const Offset(0, 6),
+                                          ),
+                                        ],
+                                      ),
+                                      child: ElevatedButton(
+                                        onPressed: _isLoading ? null : _submit,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                        ),
+                                        child: _isLoading
+                                            ? Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  const SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  const Text('Registrando...'),
+                                                ],
+                                              )
+                                            : const Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(Icons.person_add, size: 20),
+                                                  SizedBox(width: 8),
+                                                  Text(
+                                                    'Registrarse',
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
