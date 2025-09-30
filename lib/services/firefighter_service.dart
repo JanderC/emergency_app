@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:app_emergency/utils/shared_prefs.dart';
 
 class FirefighterService {
-  final String baseUrl = 'http://127.0.0.1:5000/api/bomberos';
+  final String baseUrl = 'http://192.168.1.116:5000/api/bomberos';
 
   // Obtener el token cada vez que se necesite
   String? get token => SharedPrefs.getToken();

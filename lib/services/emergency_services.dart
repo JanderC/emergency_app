@@ -5,7 +5,7 @@ import 'package:app_emergency/models/incident.dart';
 import 'package:app_emergency/utils/shared_prefs.dart';
 
 class EmergencyService {
-  final String baseUrl = 'http://127.0.0.1:5000/api/emergencias';
+  final String baseUrl = 'http://192.168.1.116:5000/api/emergencias';
 
   // Obtener el token cada vez que se necesite
   String? get token => SharedPrefs.getToken();

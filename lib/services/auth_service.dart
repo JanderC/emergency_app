@@ -50,13 +50,13 @@ class AuthService with ChangeNotifier {
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       print('Intentando login con: $email');
-      print('URL: http://127.0.0.1:5000/api/auth/login');
+      print('URL: http://192.168.1.116:5000/api/auth/login');
 
       final body = json.encode({'email': email, 'password': password});
       print('Body: $body');
 
       final response = await http.post(
-        Uri.parse('http://127.0.0.1:5000/api/auth/login'),
+        Uri.parse('http://192.168.1.116:5000/api/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: body,
       );
@@ -141,7 +141,7 @@ class AuthService with ChangeNotifier {
   ) async {
     try {
       final response = await http.put(
-        Uri.parse('http://127.0.0.1:5000/api/usuarios/perfil'),
+        Uri.parse('http://192.168.1.116:5000/api/usuarios/perfil'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_token',
@@ -182,7 +182,7 @@ class AuthService with ChangeNotifier {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('http://127.0.0.1:5000/api/auth/register'),
+        Uri.parse('http://192.168.1.116:5000/api/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'nombre': nombre,
