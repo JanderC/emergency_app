@@ -17,11 +17,11 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final UserService _userService = UserService();
-  
+
   late TextEditingController _nombreController;
   late TextEditingController _apellidoController;
   late TextEditingController _telefonoController;
-  
+
   File? _profileImage;
   String? _profileImageBase64;
   bool _isLoading = false;
@@ -30,12 +30,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _refreshUserData();
     final user = Provider.of<AuthService>(context, listen: false).user;
-    
+
     _nombreController = TextEditingController(text: user?.nombre ?? '');
     _apellidoController = TextEditingController(text: user?.apellido ?? '');
     _telefonoController = TextEditingController(text: user?.telefono ?? '');
-    
+
     _profileImageBase64 = user?.fotoPerfil;
   }
 
@@ -45,6 +46,38 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     _apellidoController.dispose();
     _telefonoController.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshUserData() async {
+    try {
+      final profileData = await _userService.getUserProfile();
+      final updatedUser = Provider.of<AuthService>(context, listen: false).user;
+
+      if (mounted) {
+        setState(() {
+          _nombreController.text =
+              profileData['nombre'] ?? updatedUser?.nombre ?? '';
+          _apellidoController.text =
+              profileData['apellido'] ?? updatedUser?.apellido ?? '';
+          _telefonoController.text =
+              profileData['telefono'] ?? updatedUser?.telefono ?? '';
+          _profileImageBase64 =
+              profileData['foto_perfil'] ?? updatedUser?.fotoPerfil;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error al refrescar datos: ${e.toString().replaceAll('Exception: ', '')}',
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _pickImage() async {
@@ -60,12 +93,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         maxHeight: 512,
         imageQuality: 80,
       );
-      
+
       if (pickedFile != null) {
         final imageFile = File(pickedFile.path);
         final bytes = await imageFile.readAsBytes();
         final base64String = base64Encode(bytes);
-        
+
         setState(() {
           _profileImage = imageFile;
           _profileImageBase64 = base64String;
@@ -120,16 +153,31 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         'nombre': _nombreController.text.trim(),
         'apellido': _apellidoController.text.trim(),
         'telefono': _telefonoController.text.trim(),
-        if (_profileImageBase64 != null) 'foto_perfil': _profileImageBase64,
       };
+
+      if (_profileImageBase64 != null && _profileImageBase64!.isNotEmpty) {
+        // Enviar con el formato correcto
+        String fotoBase64 = _profileImageBase64!;
+
+        // Si NO tiene prefijo, agregarlo correctamente
+        if (!fotoBase64.startsWith('data:image/')) {
+          userData['foto_perfil'] = 'data:image/jpeg;base64,$fotoBase64';
+        } else {
+          // Si ya lo tiene, enviarlo tal cual
+          userData['foto_perfil'] = fotoBase64;
+        }
+      }
 
       final result = await _userService.updateUserProfile(userData);
 
       if (mounted) {
         if (result['success']) {
           // Actualizar el usuario en AuthService
-          await Provider.of<AuthService>(context, listen: false).updateProfile(userData);
-          
+          await Provider.of<AuthService>(
+            context,
+            listen: false,
+          ).updateProfile(userData);
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Row(
@@ -163,7 +211,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
+            content: Text(
+              'Error: ${e.toString().replaceAll('Exception: ', '')}',
+            ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -178,25 +228,47 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  ImageProvider _getProfileImage() {
+  ImageProvider? _getProfileImage() {
     if (_profileImage != null) {
       return FileImage(_profileImage!);
-    } else if (_profileImageBase64 != null && _profileImageBase64!.isNotEmpty) {
+    }
+
+    if (_profileImageBase64 != null && _profileImageBase64!.isNotEmpty) {
       try {
-        final bytes = base64Decode(_profileImageBase64!);
+        String base64String = _profileImageBase64!;
+
+        // Limpiar cualquier prefijo malformado
+        if (base64String.startsWith('data:image/')) {
+          // Buscar donde empieza el base64 real (después de la coma o de las barras)
+          if (base64String.contains(',')) {
+            base64String = base64String.split(',').last;
+          } else {
+            // Si no tiene coma, quitar "data:image/" y todo lo que no sea base64
+            base64String = base64String.replaceAll(
+              RegExp(r'^data:image/[^/]*'),
+              '',
+            );
+          }
+        }
+
+        // Limpiar espacios en blanco
+        base64String = base64String.trim();
+
+        final bytes = base64Decode(base64String);
         return MemoryImage(bytes);
       } catch (e) {
-        return const AssetImage('assets/default_profile.png');
+        print('❌ Error decodificando imagen: $e');
+        return null;
       }
-    } else {
-      return const AssetImage('assets/default_profile.png');
     }
+
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<AuthService>(context).user;
-    
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -250,12 +322,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 child: CircleAvatar(
                   radius: 60,
                   backgroundImage: _getProfileImage(),
-                  child: _isImageLoading
-                      ? const CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        )
-                      : null,
+                  backgroundColor: Colors.grey.shade300,
+                  child:
+                      _isImageLoading
+                          ? const CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          )
+                          : (_getProfileImage() == null
+                              ? Icon(
+                                Icons.person,
+                                size: 60,
+                                color: Colors.grey.shade600,
+                              )
+                              : null),
                 ),
               ),
               Positioned(
@@ -573,22 +653,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : const Text(
+                            'Guardar Cambios',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        )
-                      : const Text(
-                          'Guardar Cambios',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
                 ),
               ),
             ],

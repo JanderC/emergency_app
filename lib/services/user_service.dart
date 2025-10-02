@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:app_emergency/utils/shared_prefs.dart';
 
 class UserService {
-  final String baseUrl = 'http://192.168.1.116:5000/api/usuarios';
+  final String baseUrl = 'http://192.168.123.41:5000/api/usuarios';
 
   // Obtener el token cada vez que se necesite
   String? get token => SharedPrefs.getToken();

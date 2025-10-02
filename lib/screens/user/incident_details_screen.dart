@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:app_emergency/services/incident_service.dart';
 import 'package:app_emergency/models/incident.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 
 class IncidentDetailsScreen extends StatefulWidget {
   final String incidentId;
@@ -44,6 +46,50 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  /// Convierte una imagen base64 a bytes para mostrarla
+  Uint8List? _decodeBase64Image(String base64String) {
+    try {
+      // Si la cadena tiene el prefijo data:image, quitarlo
+      String base64Data = base64String;
+      if (base64String.contains(',')) {
+        base64Data = base64String.split(',')[1];
+      }
+      return base64Decode(base64Data);
+    } catch (e) {
+      print('Error decodificando imagen base64: $e');
+      return null;
+    }
+  }
+
+  /// Muestra una imagen en pantalla completa
+  void _showFullImage(String base64Image, int index) {
+    final imageBytes = _decodeBase64Image(base64Image);
+    if (imageBytes == null) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            title: Text('Imagen ${index + 1} de ${_incident!.imagenes.length}'),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image.memory(
+                imageBytes,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -92,10 +138,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
               const SizedBox(height: 16),
               _buildAssignmentInfo(),
             ],
-          if (_incident!.imagenes.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildImages(),
-          ],
+          const SizedBox(height: 16),
+          _buildImages(),
           const SizedBox(height: 24),
         ],
       ),
@@ -279,54 +323,133 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Imágenes de la Emergencia',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
-            ),
+          Row(
+            children: [
+              Icon(Icons.photo_library, color: Colors.red.shade600, size: 24),
+              const SizedBox(width: 12),
+              Text(
+                'Imágenes de la Emergencia',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 120,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: _incident!.imagenes.length,
-              itemBuilder: (context, index) {
-                return Container(
-                  margin: const EdgeInsets.only(right: 12),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+          if (_incident!.imagenes.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.image_not_supported,
+                    size: 48,
+                    color: Colors.grey.shade400,
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      _incident!.imagenes[index],
-                      height: 120,
-                      width: 120,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 120,
-                          width: 120,
-                          color: Colors.grey.shade300,
-                          child: const Icon(Icons.broken_image),
-                        );
-                      },
+                  const SizedBox(height: 12),
+                  Text(
+                    'No hay imágenes adjuntas',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 14,
                     ),
                   ),
-                );
-              },
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _incident!.imagenes.length,
+                itemBuilder: (context, index) {
+                  final base64Image = _incident!.imagenes[index];
+                  final imageBytes = _decodeBase64Image(base64Image);
+
+                  return GestureDetector(
+                    onTap: () => _showFullImage(base64Image, index),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: imageBytes != null
+                            ? Stack(
+                                children: [
+                                  Image.memory(
+                                    imageBytes,
+                                    height: 120,
+                                    width: 120,
+                                    fit: BoxFit.cover,
+                                  ),
+                                  Positioned(
+                                    bottom: 4,
+                                    right: 4,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.6),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '${index + 1}/${_incident!.imagenes.length}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Container(
+                                height: 120,
+                                width: 120,
+                                color: Colors.grey.shade300,
+                                child: const Icon(
+                                  Icons.broken_image,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
+          if (_incident!.imagenes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Toca una imagen para verla en tamaño completo',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -62,6 +62,7 @@ class _FirefighterProfileScreenState extends State<FirefighterProfileScreen> {
     _loadFirefighterProfile();
   }
 
+
   @override
   void dispose() {
     _nombreController.dispose();
@@ -83,6 +84,9 @@ class _FirefighterProfileScreenState extends State<FirefighterProfileScreen> {
         _rango = profile['rango'] ?? 'bombero';
         _especialidades = List<String>.from(profile['especialidades'] ?? []);
         _certificaciones = List<String>.from(profile['certificaciones'] ?? []);
+        if (profile['foto_perfil'] != null && profile['foto_perfil'].isNotEmpty) {
+          _profileImageBase64 = profile['foto_perfil'];
+        }
       });
     } catch (e) {
       print('Error al cargar perfil de bombero: $e');
@@ -162,8 +166,20 @@ class _FirefighterProfileScreenState extends State<FirefighterProfileScreen> {
         'telefono': _telefonoController.text.trim(),
         'especialidades': _especialidades,
         'certificaciones': _certificaciones,
-        if (_profileImageBase64 != null) 'foto_perfil': _profileImageBase64,
       };
+
+      // Manejar la imagen de perfil con el formato correcto
+      if (_profileImageBase64 != null && _profileImageBase64!.isNotEmpty) {
+        String fotoBase64 = _profileImageBase64!;
+
+        // Si NO tiene prefijo, agregarlo correctamente
+        if (!fotoBase64.startsWith('data:image/')) {
+          profileData['foto_perfil'] = 'data:image/jpeg;base64,$fotoBase64';
+        } else {
+          // Si ya lo tiene, enviarlo tal cual
+          profileData['foto_perfil'] = fotoBase64;
+        }
+      }
 
       final result = await _firefighterService.updateFirefighterProfile(profileData);
 
@@ -174,8 +190,17 @@ class _FirefighterProfileScreenState extends State<FirefighterProfileScreen> {
             'nombre': _nombreController.text.trim(),
             'apellido': _apellidoController.text.trim(),
             'telefono': _telefonoController.text.trim(),
-            if (_profileImageBase64 != null) 'foto_perfil': _profileImageBase64,
           };
+          
+          if (_profileImageBase64 != null && _profileImageBase64!.isNotEmpty) {
+            String fotoBase64 = _profileImageBase64!;
+            if (!fotoBase64.startsWith('data:image/')) {
+              userData['foto_perfil'] = 'data:image/jpeg;base64,$fotoBase64';
+            } else {
+              userData['foto_perfil'] = fotoBase64;
+            }
+          }
+          
           await Provider.of<AuthService>(context, listen: false).updateProfile(userData);
           
           ScaffoldMessenger.of(context).showSnackBar(
@@ -226,19 +251,41 @@ class _FirefighterProfileScreenState extends State<FirefighterProfileScreen> {
     }
   }
 
-  ImageProvider _getProfileImage() {
+  ImageProvider? _getProfileImage() {
     if (_profileImage != null) {
       return FileImage(_profileImage!);
-    } else if (_profileImageBase64 != null && _profileImageBase64!.isNotEmpty) {
+    }
+
+    if (_profileImageBase64 != null && _profileImageBase64!.isNotEmpty) {
       try {
-        final bytes = base64Decode(_profileImageBase64!);
+        String base64String = _profileImageBase64!;
+
+        // Limpiar cualquier prefijo malformado
+        if (base64String.startsWith('data:image/')) {
+          // Buscar donde empieza el base64 real (después de la coma o de las barras)
+          if (base64String.contains(',')) {
+            base64String = base64String.split(',').last;
+          } else {
+            // Si no tiene coma, quitar "data:image/" y todo lo que no sea base64
+            base64String = base64String.replaceAll(
+              RegExp(r'^data:image/[^/]*'),
+              '',
+            );
+          }
+        }
+
+        // Limpiar espacios en blanco
+        base64String = base64String.trim();
+
+        final bytes = base64Decode(base64String);
         return MemoryImage(bytes);
       } catch (e) {
-        return const AssetImage('assets/default_profile.png');
+        print('❌ Error decodificando imagen: $e');
+        return null;
       }
-    } else {
-      return const AssetImage('assets/default_profile.png');
     }
+
+    return null;
   }
 
   @override
@@ -298,12 +345,20 @@ class _FirefighterProfileScreenState extends State<FirefighterProfileScreen> {
                 child: CircleAvatar(
                   radius: 60,
                   backgroundImage: _getProfileImage(),
-                  child: _isImageLoading
-                      ? const CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        )
-                      : null,
+                  backgroundColor: Colors.grey.shade300,
+                  child:
+                      _isImageLoading
+                          ? const CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          )
+                          : (_getProfileImage() == null
+                              ? Icon(
+                                Icons.person,
+                                size: 60,
+                                color: Colors.grey.shade600,
+                              )
+                              : null),
                 ),
               ),
               Positioned(

@@ -45,20 +45,67 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 80,
-    );
-    
-    if (pickedFile != null) {
-      setState(() {
-        _selectedImages.add(File(pickedFile.path));
-      });
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85, // Buena calidad para base64
+      );
+      
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImages.add(File(pickedFile.path));
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Imagen agregada exitosamente'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al seleccionar imagen: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
+  }
+
+  Future<void> _showImageSourceDialog() async {
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Seleccionar imagen'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.blue),
+              title: const Text('Galería'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.green),
+              title: const Text('Cámara'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _getCurrentLocation() async {
@@ -82,6 +129,33 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       return;
     }
 
+    // Mostrar confirmación si hay imágenes
+    if (_selectedImages.isNotEmpty) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Confirmar reporte'),
+          content: Text(
+            'Se enviarán ${_selectedImages.length} imagen(es) con el reporte. '
+            'Esto puede tardar unos segundos.\n\n¿Desea continuar?'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Continuar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      
+      if (confirm != true) return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -94,24 +168,34 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         'coordenadas_lat': double.parse(_latController.text),
         'coordenadas_lng': double.parse(_lngController.text),
         'nivel_urgencia': _nivelUrgencia,
-        'imagenes': [], // En implementación real, subirías las imágenes primero
       };
 
-      final result = await _incidentService.reportIncident(incidentData);
+      // Enviar imágenes si las hay
+      final result = await _incidentService.reportIncident(
+        incidentData,
+        imageFiles: _selectedImages.isNotEmpty ? _selectedImages : null,
+      );
 
       if (mounted) {
         if (result['success']) {
+          final imagenesGuardadas = result['imagenes_guardadas'] ?? 0;
+          String mensaje = result['message'];
+          if (imagenesGuardadas > 0) {
+            mensaje += '\n$imagenesGuardadas imagen(es) adjuntada(s)';
+          }
+          
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
                 children: [
                   const Icon(Icons.check_circle, color: Colors.white),
                   const SizedBox(width: 8),
-                  Text(result['message']),
+                  Expanded(child: Text(mensaje)),
                 ],
               ),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
             ),
           );
           Navigator.pop(context, true);
@@ -435,7 +519,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
 
   Widget _buildImagesCard() {
     return _buildCard(
-      title: 'Imágenes',
+      title: 'Imágenes (${_selectedImages.length})',
       icon: Icons.photo_camera,
       child: Column(
         children: [
@@ -487,14 +571,25 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
             const SizedBox(height: 12),
           ],
           OutlinedButton.icon(
-            onPressed: _pickImage,
+            onPressed: _showImageSourceDialog,
             icon: const Icon(Icons.add_photo_alternate),
-            label: const Text('Agregar Imagen'),
+            label: Text(_selectedImages.isEmpty ? 'Agregar Imagen' : 'Agregar Más'),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.blue.shade600,
               side: BorderSide(color: Colors.blue.shade600),
             ),
           ),
+          if (_selectedImages.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Las imágenes se enviarán con el reporte',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
         ],
       ),
     );

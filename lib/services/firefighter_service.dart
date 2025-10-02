@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:app_emergency/utils/shared_prefs.dart';
 
 class FirefighterService {
-  final String baseUrl = 'http://192.168.1.116:5000/api/bomberos';
+  final String baseUrl = 'http://192.168.123.41:5000/api/bomberos';
 
   // Obtener el token cada vez que se necesite
   String? get token => SharedPrefs.getToken();
@@ -251,13 +251,16 @@ class FirefighterService {
   }) async {
     try {
       Uri uri = Uri.parse(baseUrl);
-      
+
       Map<String, String> queryParams = {};
-      if (estadoServicio != null) queryParams['estado_servicio'] = estadoServicio;
-      if (estacionPertenencia != null) queryParams['estacion_pertenencia'] = estacionPertenencia;
+      if (estadoServicio != null)
+        queryParams['estado_servicio'] = estadoServicio;
+      if (estacionPertenencia != null)
+        queryParams['estacion_pertenencia'] = estacionPertenencia;
       if (rango != null) queryParams['rango'] = rango;
-      if (tieneAmbulancia != null) queryParams['tiene_ambulancia'] = tieneAmbulancia.toString();
-      
+      if (tieneAmbulancia != null)
+        queryParams['tiene_ambulancia'] = tieneAmbulancia.toString();
+
       if (queryParams.isNotEmpty) {
         uri = uri.replace(queryParameters: queryParams);
       }
@@ -297,10 +300,7 @@ class FirefighterService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: json.encode({
-          'lat': lat,
-          'lng': lng,
-        }),
+        body: json.encode({'lat': lat, 'lng': lng}),
       );
 
       print('Código de respuesta: ${response.statusCode}');
@@ -317,26 +317,31 @@ class FirefighterService {
 
       return {
         'success': true,
-        'message': responseData['mensaje'] ?? 'Ubicación actualizada exitosamente',
+        'message':
+            responseData['mensaje'] ?? 'Ubicación actualizada exitosamente',
       };
     } catch (e) {
       print('Error en updateLocation: $e');
       return {'success': false, 'message': 'Error de conexión: $e'};
     }
   }
-
   /// Marca un incidente como completado
   Future<Map<String, dynamic>> completeIncident(String incidentId) async {
     try {
       print('Marcando incidente como completado: $incidentId');
       print('Token usado: $token');
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/incidente/$incidentId/completar'),
+      final response = await http.put(
+        Uri.parse(
+          'http://192.168.123.41:5000/api/incidentes/$incidentId/completar',
+        ), // Usar el endpoint de cambiar estado
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
+        body: json.encode({
+          'estado': 'completado', // Enviar el nuevo estado
+        }),
       );
 
       print('Código de respuesta: ${response.statusCode}');
@@ -353,7 +358,8 @@ class FirefighterService {
 
       return {
         'success': true,
-        'message': responseData['mensaje'] ?? 'Incidente completado exitosamente',
+        'message':
+            responseData['mensaje'] ?? 'Incidente completado exitosamente',
       };
     } catch (e) {
       print('Error en completeIncident: $e');
@@ -389,7 +395,8 @@ class FirefighterService {
 
       return {
         'success': true,
-        'message': responseData['mensaje'] ?? 'Bombero desactivado exitosamente',
+        'message':
+            responseData['mensaje'] ?? 'Bombero desactivado exitosamente',
       };
     } catch (e) {
       print('Error en deactivateFirefighter: $e');

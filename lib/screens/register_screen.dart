@@ -18,10 +18,16 @@ class _RegisterScreenState extends State<RegisterScreen>
   final _telefonoController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  // Campos para bomberos
+  final _codigoBomberoController = TextEditingController();
+  final _estacionController = TextEditingController();
+
   bool _esBombero = false;
   bool _isLoading = false;
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
+  String _rangoSeleccionado = 'bombero';
 
   late AnimationController _animationController;
   late AnimationController _pulseController;
@@ -29,52 +35,51 @@ class _RegisterScreenState extends State<RegisterScreen>
   late Animation<double> _slideAnimation;
   late Animation<double> _pulseAnimation;
 
+  final List<String> _rangosDisponibles = [
+    'bombero',
+    'cabo',
+    'teniente',
+    'capitan',
+    'comandante',
+  ];
+
   @override
   void initState() {
     super.initState();
-    
-    // Animación principal
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
-    
-    // Animación de pulso para el logo
+
     _pulseController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
     )..repeat(reverse: true);
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+      ),
+    );
 
-    _slideAnimation = Tween<double>(
-      begin: 50.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.2, 0.8, curve: Curves.elasticOut),
-    ));
+    _slideAnimation = Tween<double>(begin: 50.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: const Interval(0.2, 0.8, curve: Curves.elasticOut),
+      ),
+    );
 
-    _pulseAnimation = Tween<double>(
-      begin: 0.95,
-      end: 1.05,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    ));
+    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
 
     _animationController.forward();
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
-      // Animación de shake para errores
       _animationController.reverse().then((_) {
         _animationController.forward();
       });
@@ -86,13 +91,24 @@ class _RegisterScreenState extends State<RegisterScreen>
     });
 
     try {
-      final result = await Provider.of<AuthService>(context, listen: false).register(
-        nombre: _nombreController.text,
-        apellido: _apellidoController.text,
-        email: _emailController.text,
-        telefono: _telefonoController.text,
+      final result = await Provider.of<AuthService>(
+        context,
+        listen: false,
+      ).register(
+        nombre: _nombreController.text.trim(),
+        apellido: _apellidoController.text.trim(),
+        email: _emailController.text.trim(),
+        telefono: _telefonoController.text.trim(),
         password: _passwordController.text,
         esBombero: _esBombero,
+        // Campos adicionales para bomberos
+        codigoBombero: _esBombero ? _codigoBomberoController.text.trim() : null,
+        estacionPertenencia:
+            _esBombero ? _estacionController.text.trim() : null,
+        rango: _esBombero ? _rangoSeleccionado : null,
+        especialidades: [],
+        certificaciones: [],
+        experienciaAnos: 0,
       );
 
       if (mounted) {
@@ -104,8 +120,7 @@ class _RegisterScreenState extends State<RegisterScreen>
             Colors.green,
             Icons.check_circle,
           );
-          
-          // Animación de salida
+
           await _animationController.reverse();
           Navigator.of(context).pop();
         }
@@ -136,9 +151,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         ),
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -189,15 +202,18 @@ class _RegisterScreenState extends State<RegisterScreen>
                     ),
                     child: Icon(icon, color: Colors.red),
                   ),
-                  suffixIcon: showPasswordToggle == true
-                      ? IconButton(
-                          icon: Icon(
-                            obscureText ? Icons.visibility : Icons.visibility_off,
-                            color: Colors.grey,
-                          ),
-                          onPressed: onPasswordToggle,
-                        )
-                      : null,
+                  suffixIcon:
+                      showPasswordToggle == true
+                          ? IconButton(
+                            icon: Icon(
+                              obscureText
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: Colors.grey,
+                            ),
+                            onPressed: onPasswordToggle,
+                          )
+                          : null,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -235,6 +251,8 @@ class _RegisterScreenState extends State<RegisterScreen>
     _telefonoController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _codigoBomberoController.dispose();
+    _estacionController.dispose();
     super.dispose();
   }
 
@@ -256,7 +274,6 @@ class _RegisterScreenState extends State<RegisterScreen>
         child: SafeArea(
           child: Column(
             children: [
-              // AppBar personalizada
               Container(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -293,14 +310,12 @@ class _RegisterScreenState extends State<RegisterScreen>
                   ],
                 ),
               ),
-              
-              // Contenido principal
+
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24.0),
                   child: Column(
                     children: [
-                      // Logo animado
                       AnimatedBuilder(
                         animation: _pulseAnimation,
                         builder: (context, child) {
@@ -337,8 +352,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                         },
                       ),
                       const SizedBox(height: 24),
-                      
-                      // Título animado
+
                       FadeTransition(
                         opacity: _fadeAnimation,
                         child: const Text(
@@ -362,13 +376,11 @@ class _RegisterScreenState extends State<RegisterScreen>
                         ),
                       ),
                       const SizedBox(height: 32),
-                      
-                      // Formulario
+
                       Form(
                         key: _formKey,
                         child: Column(
                           children: [
-                            // Nombre
                             _buildAnimatedTextField(
                               controller: _nombreController,
                               label: 'Nombre',
@@ -382,8 +394,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                               delay: 1,
                             ),
                             const SizedBox(height: 20),
-                            
-                            // Apellido
+
                             _buildAnimatedTextField(
                               controller: _apellidoController,
                               label: 'Apellido',
@@ -397,8 +408,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                               delay: 2,
                             ),
                             const SizedBox(height: 20),
-                            
-                            // Email
+
                             _buildAnimatedTextField(
                               controller: _emailController,
                               label: 'Correo electrónico',
@@ -416,8 +426,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                               delay: 3,
                             ),
                             const SizedBox(height: 20),
-                            
-                            // Teléfono
+
                             _buildAnimatedTextField(
                               controller: _telefonoController,
                               label: 'Teléfono',
@@ -432,8 +441,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                               delay: 4,
                             ),
                             const SizedBox(height: 20),
-                            
-                            // Contraseña
+
                             _buildAnimatedTextField(
                               controller: _passwordController,
                               label: 'Contraseña',
@@ -457,8 +465,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                               delay: 5,
                             ),
                             const SizedBox(height: 20),
-                            
-                            // Confirmar Contraseña
+
                             _buildAnimatedTextField(
                               controller: _confirmPasswordController,
                               label: 'Confirmar Contraseña',
@@ -467,7 +474,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                               showPasswordToggle: true,
                               onPasswordToggle: () {
                                 setState(() {
-                                  _confirmPasswordVisible = !_confirmPasswordVisible;
+                                  _confirmPasswordVisible =
+                                      !_confirmPasswordVisible;
                                 });
                               },
                               validator: (value) {
@@ -482,21 +490,30 @@ class _RegisterScreenState extends State<RegisterScreen>
                               delay: 6,
                             ),
                             const SizedBox(height: 24),
-                            
-                            // Checkbox animado para bombero
+
+                            // Checkbox para bombero
                             AnimatedBuilder(
                               animation: _animationController,
                               builder: (context, child) {
                                 return Transform.translate(
-                                  offset: Offset(0, _slideAnimation.value * 0.7),
+                                  offset: Offset(
+                                    0,
+                                    _slideAnimation.value * 0.7,
+                                  ),
                                   child: FadeTransition(
                                     opacity: _fadeAnimation,
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        color: _esBombero ? Colors.red.withOpacity(0.1) : Colors.grey.withOpacity(0.05),
+                                        color:
+                                            _esBombero
+                                                ? Colors.red.withOpacity(0.1)
+                                                : Colors.grey.withOpacity(0.05),
                                         borderRadius: BorderRadius.circular(16),
                                         border: Border.all(
-                                          color: _esBombero ? Colors.red : Colors.transparent,
+                                          color:
+                                              _esBombero
+                                                  ? Colors.red
+                                                  : Colors.transparent,
                                           width: 1,
                                         ),
                                       ),
@@ -505,12 +522,17 @@ class _RegisterScreenState extends State<RegisterScreen>
                                           children: [
                                             Icon(
                                               Icons.local_fire_department,
-                                              color: _esBombero ? Colors.red : Colors.grey,
+                                              color:
+                                                  _esBombero
+                                                      ? Colors.red
+                                                      : Colors.grey,
                                             ),
                                             const SizedBox(width: 8),
                                             const Text(
                                               'Registrarse como bombero',
-                                              style: TextStyle(fontWeight: FontWeight.w500),
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w500,
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -521,21 +543,173 @@ class _RegisterScreenState extends State<RegisterScreen>
                                             _esBombero = value ?? false;
                                           });
                                         },
-                                        controlAffinity: ListTileControlAffinity.leading,
+                                        controlAffinity:
+                                            ListTileControlAffinity.leading,
                                       ),
                                     ),
                                   ),
                                 );
                               },
                             ),
+
+                            // Campos adicionales para bomberos
+                            if (_esBombero) ...[
+                              const SizedBox(height: 20),
+                              FadeTransition(
+                                opacity: _fadeAnimation,
+                                child: Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Colors.red.withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.local_fire_department,
+                                            color: Colors.red,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Text(
+                                            'Información de Bombero',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.red,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+
+                                      _buildAnimatedTextField(
+                                        controller: _codigoBomberoController,
+                                        label: 'Código de Bombero',
+                                        icon: Icons.badge,
+                                        validator: (value) {
+                                          if (_esBombero &&
+                                              (value == null ||
+                                                  value.isEmpty)) {
+                                            return 'El código de bombero es requerido';
+                                          }
+                                          return null;
+                                        },
+                                        delay: 7,
+                                      ),
+                                      const SizedBox(height: 16),
+
+                                      _buildAnimatedTextField(
+                                        controller: _estacionController,
+                                        label: 'Estación de Pertenencia',
+                                        icon: Icons.location_on,
+                                        validator: (value) {
+                                          if (_esBombero &&
+                                              (value == null ||
+                                                  value.isEmpty)) {
+                                            return 'La estación es requerida';
+                                          }
+                                          return null;
+                                        },
+                                        delay: 8,
+                                      ),
+                                      const SizedBox(height: 16),
+
+                                      // Dropdown para rango
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.grey.withOpacity(
+                                                0.1,
+                                              ),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: DropdownButtonFormField<String>(
+                                          value: _rangoSeleccionado,
+                                          decoration: InputDecoration(
+                                            labelText: 'Rango',
+                                            prefixIcon: Container(
+                                              margin: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: Colors.red.withOpacity(
+                                                  0.1,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: const Icon(
+                                                Icons.military_tech,
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              borderSide: BorderSide.none,
+                                            ),
+                                            filled: true,
+                                            fillColor: Colors.white,
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              borderSide: const BorderSide(
+                                                color: Colors.red,
+                                                width: 2,
+                                              ),
+                                            ),
+                                          ),
+                                          items:
+                                              _rangosDisponibles.map((rango) {
+                                                return DropdownMenuItem<String>(
+                                                  value: rango,
+                                                  child: Text(
+                                                    rango
+                                                            .substring(0, 1)
+                                                            .toUpperCase() +
+                                                        rango.substring(1),
+                                                    style: const TextStyle(
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                          onChanged: (value) {
+                                            setState(() {
+                                              _rangoSeleccionado = value!;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+
                             const SizedBox(height: 32),
-                            
-                            // Botón de registro mejorado
+
+                            // Botón de registro
                             AnimatedBuilder(
                               animation: _animationController,
                               builder: (context, child) {
                                 return Transform.translate(
-                                  offset: Offset(0, _slideAnimation.value * 0.8),
+                                  offset: Offset(
+                                    0,
+                                    _slideAnimation.value * 0.8,
+                                  ),
                                   child: FadeTransition(
                                     opacity: _fadeAnimation,
                                     child: Container(
@@ -558,39 +732,58 @@ class _RegisterScreenState extends State<RegisterScreen>
                                           foregroundColor: Colors.white,
                                           elevation: 0,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                         ),
-                                        child: _isLoading
-                                            ? Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  const SizedBox(
-                                                    width: 20,
-                                                    height: 20,
-                                                    child: CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: Colors.white,
+                                        child:
+                                            _isLoading
+                                                ? Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    const SizedBox(
+                                                      width: 20,
+                                                      height: 20,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color: Colors.white,
+                                                          ),
                                                     ),
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  const Text('Registrando...'),
-                                                ],
-                                              )
-                                            : const Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  Icon(Icons.person_add, size: 20),
-                                                  SizedBox(width: 8),
-                                                  Text(
-                                                    'Registrarse',
-                                                    style: TextStyle(
-                                                      fontSize: 16,
-                                                      fontWeight: FontWeight.w600,
+                                                    const SizedBox(width: 12),
+                                                    Text(
+                                                      _esBombero
+                                                          ? 'Registrando Bombero...'
+                                                          : 'Registrando...',
                                                     ),
-                                                  ),
-                                                ],
-                                              ),
+                                                  ],
+                                                )
+                                                : Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    Icon(
+                                                      _esBombero
+                                                          ? Icons
+                                                              .local_fire_department
+                                                          : Icons.person_add,
+                                                      size: 20,
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      _esBombero
+                                                          ? 'Registrar Bombero'
+                                                          : 'Registrarse',
+                                                      style: const TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                       ),
                                     ),
                                   ),

@@ -50,13 +50,13 @@ class AuthService with ChangeNotifier {
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       print('Intentando login con: $email');
-      print('URL: http://192.168.1.116:5000/api/auth/login');
+      print('URL: http://192.168.123.41:5000/api/auth/login');
 
       final body = json.encode({'email': email, 'password': password});
       print('Body: $body');
 
       final response = await http.post(
-        Uri.parse('http://192.168.1.116:5000/api/auth/login'),
+        Uri.parse('http://192.168.123.41:5000/api/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: body,
       );
@@ -136,12 +136,28 @@ class AuthService with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> actualizarPerfilLocal(Map<String, dynamic> perfilData) async {
+    if (_user != null) {
+      _user = User(
+        id: _user!.id,
+        nombre: perfilData['nombre'] ?? _user!.nombre,
+        apellido: perfilData['apellido'] ?? _user!.apellido,
+        email: perfilData['email'] ?? _user!.email,
+        telefono: perfilData['telefono'],
+        esBombero: perfilData['es_bombero'] ?? _user!.esBombero,
+        fotoPerfil: perfilData['foto_perfil'],
+        fechaRegistro: perfilData['fecha_registro']?.toString(),
+      );
+      notifyListeners();
+    }
+  }
+
   Future<Map<String, dynamic>> updateProfile(
     Map<String, dynamic> userData,
   ) async {
     try {
       final response = await http.put(
-        Uri.parse('http://192.168.1.116:5000/api/usuarios/perfil'),
+        Uri.parse('http://192.168.123.41:5000/api/usuarios/perfil'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_token',
@@ -179,10 +195,35 @@ class AuthService with ChangeNotifier {
     required String telefono,
     required String password,
     required bool esBombero,
+    // Campos adicionales para bomberos
+    String? codigoBombero,
+    String? estacionPertenencia,
+    String? rango,
+    List<String>? especialidades,
+    List<String>? certificaciones,
+    int? experienciaAnos,
   }) async {
     try {
+      // Si es bombero, usar el endpoint de bomberos
+      if (esBombero) {
+        return await _registerBombero(
+          nombre: nombre,
+          apellido: apellido,
+          email: email,
+          telefono: telefono,
+          password: password,
+          codigoBombero: codigoBombero!,
+          estacionPertenencia: estacionPertenencia!,
+          rango: rango,
+          especialidades: especialidades,
+          certificaciones: certificaciones,
+          experienciaAnos: experienciaAnos,
+        );
+      }
+
+      // Usuario civil normal
       final response = await http.post(
-        Uri.parse('http://192.168.1.116:5000/api/auth/register'),
+        Uri.parse('http://192.168.123.41:5000/api/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'nombre': nombre,
@@ -190,7 +231,7 @@ class AuthService with ChangeNotifier {
           'email': email,
           'telefono': telefono,
           'password': password,
-          'es_bombero': esBombero,
+          'es_bombero': false,
         }),
       );
 
@@ -209,6 +250,65 @@ class AuthService with ChangeNotifier {
       };
     } catch (error) {
       print('Error en el registro: $error');
+      return {
+        'success': false,
+        'message': 'Error en la conexión. Intente nuevamente.',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> _registerBombero({
+    required String nombre,
+    required String apellido,
+    required String email,
+    required String telefono,
+    required String password,
+    required String codigoBombero,
+    required String estacionPertenencia,
+    String? rango,
+    List<String>? especialidades,
+    List<String>? certificaciones,
+    int? experienciaAnos,
+  }) async {
+    try {
+      print('Registrando bombero con código: $codigoBombero');
+
+      final response = await http.post(
+        Uri.parse('http://192.168.123.41:5000/api/bomberos/registro'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'nombre': nombre,
+          'apellido': apellido,
+          'email': email,
+          'telefono': telefono,
+          'password': password,
+          'codigo_bombero': codigoBombero,
+          'estacion_pertenencia': estacionPertenencia,
+          'rango': rango ?? 'bombero',
+          'especialidades': especialidades ?? [],
+          'certificaciones': certificaciones ?? [],
+          'experiencia_anos': experienciaAnos ?? 0,
+        }),
+      );
+
+      print('Código de respuesta: ${response.statusCode}');
+      print('Cuerpo de respuesta: ${response.body}');
+
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode >= 400) {
+        return {
+          'success': false,
+          'message': responseData['error'] ?? 'Error en el registro de bombero',
+        };
+      }
+
+      return {
+        'success': true,
+        'message': responseData['mensaje'] ?? 'Bombero registrado exitosamente',
+      };
+    } catch (error) {
+      print('Error en el registro de bombero: $error');
       return {
         'success': false,
         'message': 'Error en la conexión. Intente nuevamente.',

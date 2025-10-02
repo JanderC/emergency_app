@@ -17,7 +17,7 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
   bool _isLoading = true;
   String _error = '';
   String _searchQuery = '';
-  int _selectedFilter = 0; // 0: Todas, 1: Operativas, 2: En servicio, 3: Mantenimiento
+  int _selectedFilter = 0;
 
   final List<String> _filterLabels = ['Todas', 'Operativas', 'En Servicio', 'Mantenimiento'];
 
@@ -51,27 +51,30 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
   void _applyFilters() {
     List<Ambulance> filtered = List.from(_ambulances);
 
-    // Aplicar filtro de estado
     switch (_selectedFilter) {
-      case 1: // Operativas
+      case 1:
         filtered = filtered.where((a) => a.estado == 'operativa').toList();
         break;
-      case 2: // En servicio
+      case 2:
         filtered = filtered.where((a) => a.estado == 'en_servicio').toList();
         break;
-      case 3: // Mantenimiento
+      case 3:
         filtered = filtered.where((a) => a.estado == 'mantenimiento').toList();
         break;
-      default: // Todas
+      default:
         break;
     }
 
-    // Aplicar búsqueda
     if (_searchQuery.isNotEmpty) {
       filtered = filtered.where((ambulance) {
-        return ambulance.placa.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-               ambulance.modelo.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-               ambulance.estacionPertenencia.toLowerCase().contains(_searchQuery.toLowerCase());
+        final placa = ambulance.placa.toLowerCase();
+        final modelo = ambulance.modelo?.toLowerCase() ?? '';
+        final estacion = ambulance.estacionPertenencia?.toLowerCase() ?? '';
+        final query = _searchQuery.toLowerCase();
+        
+        return placa.contains(query) || 
+               modelo.contains(query) || 
+               estacion.contains(query);
       }).toList();
     }
 
@@ -123,6 +126,45 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
                 Expanded(child: Text(result['message'])),
               ],
             ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _releaseAmbulance(String ambulanceId) async {
+    try {
+      final result = await _ambulanceService.releaseAmbulance(ambulanceId);
+      
+      if (result['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(result['message']),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _loadAmbulances();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -329,7 +371,6 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          // Barra de búsqueda
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -353,7 +394,6 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // Filtros
           Row(
             children: List.generate(_filterLabels.length, (index) {
               final isSelected = _selectedFilter == index;
@@ -398,15 +438,11 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
     }
 
     if (_error.isNotEmpty) {
-      return SliverFillRemaining(
-        child: _buildErrorState(),
-      );
+      return SliverFillRemaining(child: _buildErrorState());
     }
 
     if (_filteredAmbulances.isEmpty) {
-      return SliverFillRemaining(
-        child: _buildEmptyState(),
-      );
+      return SliverFillRemaining(child: _buildEmptyState());
     }
 
     return SliverPadding(
@@ -477,7 +513,7 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
                         ],
                       ),
                       Text(
-                        ambulance.modelo,
+                        ambulance.modelo ?? 'Sin modelo',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 14,
@@ -489,7 +525,7 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildInfoGrid(ambulance            ),
+            _buildInfoGrid(ambulance),
             const SizedBox(height: 16),
             _buildActionButtons(ambulance),
           ],
@@ -507,7 +543,7 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
               child: _buildInfoItem(
                 Icons.category,
                 'Tipo',
-                ambulance.tipo,
+                ambulance.tipo ?? 'No especificado',
               ),
             ),
             const SizedBox(width: 16),
@@ -515,7 +551,9 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
               child: _buildInfoItem(
                 Icons.people,
                 'Capacidad',
-                '${ambulance.capacidad} personas',
+                ambulance.capacidad != null 
+                    ? '${ambulance.capacidad} personas'
+                    : 'No especificada',
               ),
             ),
           ],
@@ -524,14 +562,16 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
         _buildInfoItem(
           Icons.location_city,
           'Estación',
-          ambulance.estacionPertenencia,
+          ambulance.estacionPertenencia ?? 'No asignada',
         ),
         if (ambulance.bomberoAsignadoId != null) ...[
           const SizedBox(height: 12),
           _buildInfoItem(
             Icons.person,
             'Bombero Asignado',
-            'ID: ${ambulance.bomberoAsignadoId}',
+            ambulance.bomberoInfo != null
+                ? ambulance.bomberoInfo!['nombre'] ?? 'Desconocido'
+                : 'ID: ${ambulance.bomberoAsignadoId}',
           ),
         ],
       ],
@@ -607,7 +647,7 @@ class _AmbulanceManagementScreenState extends State<AmbulanceManagementScreen> {
         ] else if (ambulance.estado == 'en_servicio') ...[
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: () => _updateAmbulanceStatus(ambulance.id, 'operativa'),
+              onPressed: () => _releaseAmbulance(ambulance.id),
               icon: const Icon(Icons.check_circle, size: 18),
               label: const Text('Liberar'),
               style: ElevatedButton.styleFrom(
