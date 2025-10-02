@@ -30,7 +30,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     {'value': 'accidente_vehicular', 'label': 'Accidente Vehicular', 'icon': Icons.car_crash, 'color': Colors.orange},
     {'value': 'emergencia_medica', 'label': 'Emergencia Médica', 'icon': Icons.medical_services, 'color': Colors.purple},
     {'value': 'inundacion', 'label': 'Inundación', 'icon': Icons.water, 'color': Colors.blue.shade700},
-    {'value': 'deslizamiento', 'label': 'Deslizamiento', 'icon': Icons.landscape, 'color': Colors.brown},
+    {'value': 'temblor', 'label': 'Temblor', 'icon': Icons.landscape, 'color': Colors.brown},
     {'value': 'explosion', 'label': 'Explosión', 'icon': Icons.flash_on, 'color': Colors.yellow.shade700},
     {'value': 'fuga_gas', 'label': 'Fuga de Gas', 'icon': Icons.cloud, 'color': Colors.grey},
     {'value': 'otro', 'label': 'Otro', 'icon': Icons.warning, 'color': Colors.grey.shade600},

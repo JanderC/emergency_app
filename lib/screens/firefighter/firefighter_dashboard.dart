@@ -675,7 +675,7 @@ class _FirefighterDashboardState extends State<FirefighterDashboard> {
         iconData = Icons.water;
         color = Colors.blue.shade700;
         break;
-      case 'deslizamiento':
+      case 'temblor':
         iconData = Icons.landscape;
         color = Colors.brown;
         break;
