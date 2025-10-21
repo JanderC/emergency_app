@@ -1,3 +1,4 @@
+// lib/services/auth_service.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -5,6 +6,8 @@ import 'package:app_emergency/utils/shared_prefs.dart';
 import 'package:app_emergency/models/user.dart';
 
 class AuthService with ChangeNotifier {
+  static const String baseUrl = 'https://emergencyapi-production.up.railway.app/api';
+  
   String? _token;
   String? _userId;
   bool _isBombero = false;
@@ -50,13 +53,13 @@ class AuthService with ChangeNotifier {
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       print('Intentando login con: $email');
-      print('URL: https://emergencyapi-production.up.railway.app/api/auth/login');
+      print('URL: $baseUrl/auth/login');
 
       final body = json.encode({'email': email, 'password': password});
       print('Body: $body');
 
       final response = await http.post(
-        Uri.parse('https://emergencyapi-production.up.railway.app/api/auth/login'),
+        Uri.parse('$baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: body,
       );
@@ -72,12 +75,10 @@ class AuthService with ChangeNotifier {
         };
       }
 
-      // Decodificar la respuesta
       final responseData = json.decode(response.body);
       print('Datos decodificados: $responseData');
 
       try {
-        // Extraer los datos necesarios
         _token = responseData['access_token'];
         print('Token extraído: $_token');
 
@@ -136,12 +137,30 @@ class AuthService with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> actualizarPerfilLocal(Map<String, dynamic> perfilData) async {
+    if (_user != null) {
+      _user = User(
+        id: _user!.id,
+        nombre: perfilData['nombre'] ?? _user!.nombre,
+        apellido: perfilData['apellido'] ?? _user!.apellido,
+        email: perfilData['email'] ?? _user!.email,
+        cedula: perfilData['cedula'] ?? _user!.cedula, // NUEVO
+        direccion: perfilData['direccion'] ?? _user!.direccion, // NUEVO
+        telefono: perfilData['telefono'],
+        esBombero: perfilData['es_bombero'] ?? _user!.esBombero,
+        fotoPerfil: perfilData['foto_perfil'],
+        fechaRegistro: perfilData['fecha_registro']?.toString(),
+      );
+      notifyListeners();
+    }
+  }
+
   Future<Map<String, dynamic>> updateProfile(
     Map<String, dynamic> userData,
   ) async {
     try {
       final response = await http.put(
-        Uri.parse('https://emergencyapi-production.up.railway.app/api/usuarios/perfil'),
+        Uri.parse('$baseUrl/usuarios/perfil'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_token',
@@ -158,7 +177,6 @@ class AuthService with ChangeNotifier {
         };
       }
 
-      // Actualizar datos del usuario
       _user = User.fromJson(responseData['usuario']);
       await SharedPrefs.setUserData(json.encode(responseData['usuario']));
 
@@ -176,21 +194,52 @@ class AuthService with ChangeNotifier {
     required String nombre,
     required String apellido,
     required String email,
+    required String cedula, // NUEVO
+    required String direccion, // NUEVO
     required String telefono,
     required String password,
     required bool esBombero,
+    // Campos adicionales para bomberos
+    String? codigoBombero,
+    String? estacionPertenencia,
+    String? rango,
+    List<String>? especialidades,
+    List<String>? certificaciones,
+    int? experienciaAnos,
   }) async {
     try {
+      // Si es bombero, usar el endpoint de bomberos
+      if (esBombero) {
+        return await _registerBombero(
+          nombre: nombre,
+          apellido: apellido,
+          email: email,
+          cedula: cedula, // NUEVO
+          direccion: direccion, // NUEVO
+          telefono: telefono,
+          password: password,
+          codigoBombero: codigoBombero!,
+          estacionPertenencia: estacionPertenencia!,
+          rango: rango,
+          especialidades: especialidades,
+          certificaciones: certificaciones,
+          experienciaAnos: experienciaAnos,
+        );
+      }
+
+      // Usuario civil normal
       final response = await http.post(
-        Uri.parse('https://emergencyapi-production.up.railway.app/api/auth/register'),
+        Uri.parse('$baseUrl/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'nombre': nombre,
           'apellido': apellido,
           'email': email,
+          'cedula': cedula, // NUEVO
+          'direccion': direccion, // NUEVO
           'telefono': telefono,
           'password': password,
-          'es_bombero': esBombero,
+          'es_bombero': false,
         }),
       );
 
@@ -209,6 +258,71 @@ class AuthService with ChangeNotifier {
       };
     } catch (error) {
       print('Error en el registro: $error');
+      return {
+        'success': false,
+        'message': 'Error en la conexión. Intente nuevamente.',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> _registerBombero({
+    required String nombre,
+    required String apellido,
+    required String email,
+    required String cedula, // NUEVO
+    required String direccion, // NUEVO
+    required String telefono,
+    required String password,
+    required String codigoBombero,
+    required String estacionPertenencia,
+    String? rango,
+    List<String>? especialidades,
+    List<String>? certificaciones,
+    int? experienciaAnos,
+  }) async {
+    try {
+      print('Registrando bombero con código: $codigoBombero');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/bomberos/registro'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'nombre': nombre,
+          'apellido': apellido,
+          'email': email,
+          'cedula': cedula, // NUEVO
+          'direccion': direccion, // NUEVO
+          'telefono': telefono,
+          'password': password,
+          'codigo_bombero': codigoBombero,
+          'estacion_pertenencia': estacionPertenencia,
+          'rango': rango ?? 'bombero',
+          'especialidades': especialidades ?? [],
+          'certificaciones': certificaciones ?? [],
+          'experiencia_anos': experienciaAnos ?? 0,
+        }),
+      );
+
+      print('Código de respuesta: ${response.statusCode}');
+      print('Cuerpo de respuesta: ${response.body}');
+
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode >= 400) {
+        return {
+          'success': false,
+          'message': responseData['error'] ?? 'Error en el registro de bombero',
+        };
+      }
+
+      return {
+        'success': true,
+        'message': responseData['mensaje'] ?? 
+          'Solicitud de registro enviada. El jefe de estación debe aprobar tu cuenta.',
+        'estado': responseData['estado'],
+      };
+    } catch (error) {
+      print('Error en el registro de bombero: $error');
       return {
         'success': false,
         'message': 'Error en la conexión. Intente nuevamente.',

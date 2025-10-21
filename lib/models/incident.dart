@@ -1,3 +1,4 @@
+// lib/models/incident.dart
 class Incident {
   final String id;
   final String tipoEmergencia;
@@ -32,21 +33,36 @@ class Incident {
   });
 
   factory Incident.fromJson(Map<String, dynamic> json) {
-    final coordinates = json['coordenadas']?['coordinates'];
-    if (coordinates == null || coordinates.length != 2) {
-      throw FormatException("Coordenadas no válidas");
+    double lat = 0.0;
+    double lng = 0.0;
+
+    // Intentar obtener coordenadas de diferentes formatos
+    if (json['coordenadas'] != null) {
+      final coordinates = json['coordenadas']['coordinates'];
+      if (coordinates != null && coordinates.length >= 2) {
+        lng = (coordinates[0] as num).toDouble();
+        lat = (coordinates[1] as num).toDouble();
+      }
+    } else if (json['lat'] != null && json['lng'] != null) {
+      lat = (json['lat'] as num).toDouble();
+      lng = (json['lng'] as num).toDouble();
+    } else if (json['coordenadas_lat'] != null && json['coordenadas_lng'] != null) {
+      lat = (json['coordenadas_lat'] as num).toDouble();
+      lng = (json['coordenadas_lng'] as num).toDouble();
     }
 
     return Incident(
-      id: json['_id'] ?? json['id'],
+      id: json['_id'] ?? json['id'] ?? '',
       tipoEmergencia: json['tipo_emergencia'] ?? '',
       descripcion: json['descripcion'] ?? '',
-      ubicacion: json['ubicacion'] ?? '',
-      longitud: (coordinates[0] as num).toDouble(),
-      latitud: (coordinates[1] as num).toDouble(),
-      nivelUrgencia: json['nivel_urgencia'] ?? '',
+      ubicacion: json['ubicacion'] ?? json['direccion'] ?? '',
+      longitud: lng,
+      latitud: lat,
+      nivelUrgencia: json['nivel_urgencia'] ?? 'media',
       estado: json['estado'] ?? 'pendiente',
-      fechaReporte: DateTime.parse(json['fecha_reporte']),
+      fechaReporte: json['fecha_reporte'] != null
+          ? DateTime.parse(json['fecha_reporte'])
+          : DateTime.now(),
       fechaAtencion: json['fecha_atencion'] != null
           ? DateTime.parse(json['fecha_atencion'])
           : null,
@@ -55,7 +71,9 @@ class Incident {
       ambulanciaId: json['ambulancia_id'],
       imagenes: json['imagenes'] != null
           ? List<String>.from(json['imagenes'])
-          : [],
+          : json['foto'] != null
+              ? [json['foto']]
+              : [],
     );
   }
 }

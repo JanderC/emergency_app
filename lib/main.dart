@@ -7,7 +7,7 @@ import 'package:app_emergency/utils/shared_prefs.dart';
 import 'package:provider/provider.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();  
   await SharedPrefs.init();
   
   // Creamos una instancia de AuthService aquí

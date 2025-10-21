@@ -1,8 +1,11 @@
+// lib/models/user.dart
 class User {
   final String id;
   final String nombre;
   final String apellido;
   final String email;
+  final String? cedula; // NUEVO
+  final String? direccion; // NUEVO
   final String? telefono;
   final bool esBombero;
   final String? fotoPerfil;
@@ -13,6 +16,8 @@ class User {
     required this.nombre,
     required this.apellido,
     required this.email,
+    this.cedula, // NUEVO
+    this.direccion, // NUEVO
     this.telefono,
     required this.esBombero,
     this.fotoPerfil,
@@ -25,6 +30,8 @@ class User {
       nombre: json['nombre'],
       apellido: json['apellido'],
       email: json['email'],
+      cedula: json['cedula'], // NUEVO
+      direccion: json['direccion'], // NUEVO
       telefono: json['telefono'],
       esBombero: json['es_bombero'] ?? false,
       fotoPerfil: json['foto_perfil'],
@@ -38,6 +45,8 @@ class User {
       'nombre': nombre,
       'apellido': apellido,
       'email': email,
+      'cedula': cedula, // NUEVO
+      'direccion': direccion, // NUEVO
       'telefono': telefono,
       'es_bombero': esBombero,
       'foto_perfil': fotoPerfil,
